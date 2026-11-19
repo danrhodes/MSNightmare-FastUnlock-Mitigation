@@ -10,7 +10,7 @@ This repo blocks `Narrator.exe` with a WDAC deny policy. No reboot is required.
 ### Use
 
 1. Download `block.ps1` and `revert.ps1`.
-2. Run `Deploy-BlockNarrator.ps1` as SYSTEM in 64-bit PowerShell. Runtime: about 1 min.
+2. Run `block.ps1` in 64-bit PowerShell. Runtime: about 1 min.
 3. Verify: lock the machine and toggle Narrator twice. Both attempts must show the App Control block message.
 4. Roll back with `revert.ps1`.
 
