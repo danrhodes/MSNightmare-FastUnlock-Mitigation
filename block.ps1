@@ -10,7 +10,6 @@ if (-not [Environment]::Is64BitProcess) {
 $Dir    = 'C:\ProgramData\BlockNarrator'
 $Log    = "$Dir\run.log"
 $Id     = '{7B1E4C52-3A8D-4F6B-9C21-5D0E8A47B613}'   # fixed ID: reruns update in place
-$Old    = '{9D4088E4-FDED-4700-AD64-45D055EC2947}'   # failed test policy, removed if present
 $Xml    = "$Dir\BlockNarrator.xml"
 $Cip    = "$Dir\$Id.cip"
 $Active = "$env:windir\System32\CodeIntegrity\CiPolicies\Active"
@@ -33,8 +32,6 @@ function Invoke-CiTool([string[]]$a) {
 }
 
 try {
-    Invoke-CiTool @('--remove-policy', $Old) | Out-Null   # harmless if absent
-
     Copy-Item "$env:windir\schemas\CodeIntegrity\ExamplePolicies\AllowAll.xml" $Xml -Force
 
     $rule = New-CIPolicyRule -DriverFilePath "$env:windir\System32\Narrator.exe" -Level Hash -Deny
