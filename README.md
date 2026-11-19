@@ -29,4 +29,4 @@ Log: `C:\ProgramData\BlockNarrator\run.log`
 
 ### Reference
 
-- Vulnerability: [<FastUnlock repo URL>](https://github.com/MSNightmare/FastUnlock)
+- Vulnerability: https://github.com/MSNightmare/FastUnlock
