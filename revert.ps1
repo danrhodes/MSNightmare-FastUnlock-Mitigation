@@ -9,7 +9,7 @@ if (-not [Environment]::Is64BitProcess) {
 
 $Dir    = 'C:\ProgramData\BlockNarrator'
 $Log    = "$Dir\run.log"
-$Ids    = '{7B1E4C52-3A8D-4F6B-9C21-5D0E8A47B613}', '{9D4088E4-FDED-4700-AD64-45D055EC2947}'
+$Id     = '{7B1E4C52-3A8D-4F6B-9C21-5D0E8A47B613}'
 $Active = "$env:windir\System32\CodeIntegrity\CiPolicies\Active"
 $CiTool = "$env:windir\System32\CiTool.exe"
 
@@ -30,10 +30,8 @@ function Invoke-CiTool([string[]]$a) {
 }
 
 try {
-    foreach ($id in $Ids) {
-        Invoke-CiTool @('--remove-policy', $id) | Out-Null
-        Remove-Item "$Active\$id.cip" -Force -ErrorAction SilentlyContinue
-    }
+    Invoke-CiTool @('--remove-policy', $Id) | Out-Null
+    Remove-Item "$Active\$Id.cip" -Force -ErrorAction SilentlyContinue
     Log 'Block Narrator policy removed.'
     exit 0
 }
