@@ -40,31 +40,34 @@ function Log([string]$m) {
     Write-Host $line
 }
 
-function Invoke-CiTool([string[]]$a) {
+function Invoke-CiTool([string[]]$a, [switch]$NoJson) {
     if (-not (Test-Path $CiTool)) { Log 'CiTool.exe missing'; return $false }
     $in = "$Dir\enter.txt"
     '' | Set-Content $in
-    $p = Start-Process -FilePath $CiTool -ArgumentList ($a + '-json') `
+    $argList = if ($NoJson) { $a } else { $a + '-json' }
+    $p = Start-Process -FilePath $CiTool -ArgumentList $argList `
          -RedirectStandardInput $in -RedirectStandardOutput "$Dir\ci.out" -RedirectStandardError "$Dir\ci.err" `
          -NoNewWindow -PassThru
+    $null = $p.Handle
     if (-not $p.WaitForExit(60000)) { $p.Kill(); Log 'CiTool timeout'; return $false }
-    Log ("CiTool {0} exit {1}" -f ($a -join ' '), $p.ExitCode)
-    if ($p.ExitCode -ne 0) { Log ('ci.err: ' + (Get-Content "$Dir\ci.err" -Raw -ErrorAction SilentlyContinue)) }
-    return ($p.ExitCode -eq 0)
+    $p.WaitForExit()
+    $code = $p.ExitCode
+    $err  = Get-Content "$Dir\ci.err" -Raw -ErrorAction SilentlyContinue
+    Log ("CiTool {0} exit [{1}]" -f ($a -join ' '), $code)
+    if ($null -eq $code) { return [string]::IsNullOrWhiteSpace($err) }
+    if ($code -ne 0) { Log "ci.err: $err" }
+    return ($code -eq 0)
 }
 
 function Get-PolicyState {
-    if (-not (Invoke-CiTool @('--list-policies'))) { return 'unknown' }
-    try {
-        $j = Get-Content "$Dir\ci.out" -Raw | ConvertFrom-Json
-        if ($null -eq $j.Policies) { return 'unknown' }
-        $bare = $Id.Trim('{}')
-        $pol  = @($j.Policies) | Where-Object { $_.PolicyID -ieq $bare }
-        if (-not $pol) { return 'absent' }
-        if ($pol.IsEnforced) { return 'enforced' }
-        return 'present'
-    }
-    catch { Log "Policy list parse failed: $_"; return 'unknown' }
+    if (-not (Invoke-CiTool @('--list-policies') -NoJson)) { return 'unknown' }
+    $txt = Get-Content "$Dir\ci.out" -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrWhiteSpace($txt)) { Log 'Policy list output empty'; return 'unknown' }
+    $bare  = [regex]::Escape($Id.Trim('{}'))
+    $block = ($txt -split '(?m)^Policy:\s*$') | Where-Object { $_ -match "(?im)^\s*Policy ID:\s*$bare\s*$" } | Select-Object -First 1
+    if (-not $block) { return 'absent' }
+    if ($block -match '(?im)^\s*Is Currently Enforced:\s*true\s*$') { return 'enforced' }
+    return 'present'
 }
 
 try {
