@@ -1,13 +1,22 @@
 #Requires -Version 5.1
-$ErrorActionPreference = 'Stop'
+param([switch]$Child)
 
-if (-not $PSCommandPath) { Write-Host 'Run as a saved script file, not inline'; exit 1 }
-
-# Relaunch in 64-bit PowerShell if the RMM starts 32-bit
-if (-not [Environment]::Is64BitProcess) {
-    & "$env:windir\sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath
-    exit $LASTEXITCODE
+# Parent: relaunch self in 64-bit PowerShell. Merge stderr into stdout. Pass the exit code through.
+if (-not $Child) {
+    $ErrorActionPreference = 'Continue'
+    if (-not $PSCommandPath) { Write-Host 'Run as a saved script file, not inline'; exit 1 }
+    $ps = if ([Environment]::Is64BitProcess) {
+        "$env:windir\System32\WindowsPowerShell\v1.0\powershell.exe"
+    } else {
+        "$env:windir\sysnative\WindowsPowerShell\v1.0\powershell.exe"
+    }
+    $out  = & $ps -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -Child 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    Write-Host $out
+    exit $code
 }
+
+$ErrorActionPreference = 'Stop'
 
 # Elevation check
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -20,23 +29,23 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 $mtx = New-Object Threading.Mutex($false, 'Global\BlockNarrator')
 if (-not $mtx.WaitOne(0)) { Write-Host 'Already running'; exit 1 }
 
-$Dir    = 'C:\ProgramData\BlockNarrator'
+# C:\Windows\Logs is not writable by standard users by default
+$Dir    = "$env:windir\Logs\BlockNarrator"
 $Log    = "$Dir\run.log"
 $Id     = '{7B1E4C52-3A8D-4F6B-9C21-5D0E8A47B613}'
 $Active = "$env:windir\System32\CodeIntegrity\CiPolicies\Active"
 $CiTool = "$env:windir\System32\CiTool.exe"
 
-# Working directory: SYSTEM and Administrators only
 New-Item $Dir -ItemType Directory -Force | Out-Null
-& icacls.exe $Dir /setowner '*S-1-5-32-544' /T /C | Out-Null
-& icacls.exe $Dir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' /T /C | Out-Null
 
 # Rotate log at 1 MB
-if ((Test-Path $Log) -and ((Get-Item $Log).Length -gt 1MB)) { Move-Item $Log "$Log.old" -Force }
+try {
+    if ((Test-Path $Log) -and ((Get-Item $Log).Length -gt 1MB)) { Move-Item $Log "$Log.old" -Force }
+} catch { }
 
 function Log([string]$m) {
     $line = "{0:s} {1}" -f (Get-Date), $m
-    Add-Content -Path $Log -Value $line
+    try { Add-Content -Path $Log -Value $line -ErrorAction Stop } catch { }
     Write-Host $line
 }
 
